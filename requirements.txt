@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+motor
+pymongo
+python-dotenv
+PyJWT
+cryptography

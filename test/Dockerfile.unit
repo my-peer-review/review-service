@@ -1,0 +1,18 @@
+FROM python:3.11-slim
+
+# Evita check inutili e file compilati
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/work \
+    PYTEST_DISABLE_PLUGIN_CACHE=1
+
+# Directory di lavoro nel container
+WORKDIR /work
+
+# Copia i requirements di sviluppo
+COPY test/requirements-dev.txt requirements-dev.txt
+
+# Installa pip e dipendenze
+RUN python -m pip install --upgrade pip && \
+    pip install -r requirements-dev.txt
