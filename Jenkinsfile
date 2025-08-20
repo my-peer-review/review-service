@@ -2,8 +2,8 @@ pipeline {
   agent { label 'unit-test' }
 
   environment {
-    CI_IMAGE_NAME   = 'assignments-pytest'
-    APP_IMAGE_NAME  = 'ale175/service-assignment'
+    CI_IMAGE_NAME   = 'reviews-pytest'
+    APP_IMAGE_NAME  = 'ale175/service-review'
     DOCKERHUB_CREDS = 'dockerhub-creds'
     INTEGRATION_JOB = 'peer-review-pipeline/integration-repo/main' // <— ADATTA a come si chiama da te
   }
@@ -53,7 +53,7 @@ pipeline {
                 wait: true,                // <— aspetta che finisca
                 propagate: true,           // <— se fallisce, fallisce anche questa pipeline
                 parameters: [
-                  string(name: 'SERVICE_NAME', value: 'assignment'),
+                  string(name: 'SERVICE_NAME', value: 'review'),
                   string(name: 'TRIGGER_TYPE', value: 'single')
                 ]
         }
