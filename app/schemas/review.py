@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import List, Literal
-from datetime import datetime, date
+from datetime import datetime
 from pydantic import BaseModel, Field
 
 ReviewStatus = Literal["pending", "complete"]

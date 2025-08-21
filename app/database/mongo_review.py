@@ -1,9 +1,12 @@
 from __future__ import annotations
 from typing import Iterable, List, Optional, Sequence
 from datetime import datetime, timezone
-from uuid import uuid4
+import random
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
+
+def create_review_id() -> str:
+    return f"rv-{random.randint(0, 99999):05d}"
 
 class MongoReviewRepository:
 
@@ -27,7 +30,7 @@ class MongoReviewRepository:
         out_ids: List[str] = []
         now = datetime.now(timezone.utc)
         for d in docs:
-            rid = str(uuid4())
+            rid = create_review_id()
             out_ids.append(rid)
             prepared.append({
                 "reviewId": rid,
