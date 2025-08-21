@@ -135,7 +135,6 @@ async def test_list_my_reviews_requires_student(repo, teacher):
 
 @pytest.mark.asyncio
 async def test_list_my_reviews_returns_models_and_filters(repo, teacher, student1, student2):
-    # seed: crea processo per s-1 e s-2
     await ReviewService.start_process(_make_process_payload(), teacher, repo)
 
     # aggiungi una review "complete" per s-1
