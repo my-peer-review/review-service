@@ -4,11 +4,12 @@ from datetime import datetime, timezone
 import random
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from app.database.review_repo import ReviewRepo
 
 def create_review_id() -> str:
     return f"rv-{random.randint(0, 99999):05d}"
 
-class MongoReviewRepository:
+class MongoReviewRepository(ReviewRepo):
 
     def __init__(self, db: AsyncIOMotorDatabase):
         self.rev  = db["reviews"]

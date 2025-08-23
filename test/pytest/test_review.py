@@ -73,6 +73,7 @@ def _make_process_payload(**overrides) -> ReviewProcessCreate:
     base = dict(
         assignmentId="ASSIGN-001",
         deadline=date(2025, 10, 15),
+        automatic_mode = False,
         lista_assegnazioni=[
             AssignmentPair(reviewer="s-1", submissionId="SUB-100"),
             AssignmentPair(reviewer="s-2", submissionId="SUB-200"),
@@ -105,10 +106,8 @@ async def test_start_process_requires_teacher(repo, student1):
 @pytest.mark.asyncio
 async def test_start_process_creates_reviews_and_returns_process_id(repo, teacher):
     payload = _make_process_payload()
-    process_id = await ReviewService.start_process(payload, teacher, repo)
+    assignment_id = await ReviewService.start_process(payload, teacher, repo)
 
-    # process_id è un UUID valido
-    UUID(process_id)
 
     # sono state create N review (una per coppia)
     assert len(repo.reviews) == len(payload.lista_assegnazioni)
@@ -119,7 +118,6 @@ async def test_start_process_creates_reviews_and_returns_process_id(repo, teache
         assert r["submissionId"] in {"SUB-100", "SUB-200"}
         assert r["reviewerId"] in {"s-1", "s-2"}
         assert r["stato"] == "pending"
-        assert r["processId"] == process_id
         assert r["deadline"] == payload.deadline  # presente nell'impl corrente
         assert isinstance(r["createdAt"], datetime) and r["createdAt"].tzinfo == timezone.utc
         # valutazione iniziale coerente con rubrica
@@ -127,6 +125,7 @@ async def test_start_process_creates_reviews_and_returns_process_id(repo, teache
         assert all(v["punteggio"] == -1 for v in r["valutazione"])
         assert {v["criterio"] for v in r["valutazione"]} == {i.criterio for i in payload.rubrica}
         assert "reviewId" in r  # generato dal repo fake
+        assert r["assignmentId"] == assignment_id
 
 @pytest.mark.asyncio
 async def test_list_my_reviews_requires_student(repo, teacher):

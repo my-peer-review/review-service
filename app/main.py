@@ -9,6 +9,9 @@ from app.database.mongo_review import MongoReviewRepository
 from app.routers.v1 import health
 from app.routers.v1 import review
 
+from app.database.mongo_events import MongoSubmissionDeliveredRepository
+from app.services.consumer_service import ReviewSubmissionConsumer
+
 def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -16,9 +19,33 @@ def create_app() -> FastAPI:
         db = client[settings.mongo_db_name]
         repo = MongoReviewRepository(db)
         await repo.ensure_indexes()
-        app.state.review_repo = repo       # <-- usato da get_repository()
-        yield
-        client.close()
+        app.state.review_repo = repo
+
+        # <<< NEW: repo + consumer submissions
+        event_repo = MongoSubmissionDeliveredRepository(db)
+        await event_repo.ensure_indexes()
+        app.state.event_repo = event_repo
+
+        # Config RabbitMQ da settings
+        consumer = ReviewSubmissionConsumer(
+            rabbitmq_url = settings.rabbitmq_url,
+            repo = event_repo,
+            exchange_name="elearning.submission-review",
+            routing_key="submission.review",
+            queue_name="elearning.submission-consegnate",
+            durable=True
+        )
+        app.state.submission_consumer = consumer
+        await consumer.start()
+
+        try:
+            yield
+        finally:
+            # Shutdown
+            try:
+                await consumer.stop()
+            finally:
+                client.close()
 
     app = FastAPI(
         title="Assignment Microservice",
@@ -32,7 +59,7 @@ def create_app() -> FastAPI:
         allow_methods=["*"], allow_headers=["*"],
     )
 
-    app.include_router(health.router,     prefix="/api/v1", tags=["health"])
+    app.include_router(health.router, prefix="/api/v1", tags=["health"])
     app.include_router(review.router, prefix="/api/v1", tags=["review"])
     return app
 
