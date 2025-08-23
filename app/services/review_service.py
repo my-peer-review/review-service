@@ -19,8 +19,6 @@ class ReviewService:
         if not _is_teacher(user.role):
             raise PermissionError("Solo i docenti possono avviare le review")
 
-        process_id = str(uuid4())  # <-- UUID applicativo
-
         # Template punteggi iniziali (-1)
         valutazione_template = [{"criterio": r.criterio, "punteggio": -1} for r in data.rubrica]
         now = datetime.now(timezone.utc)
@@ -32,11 +30,10 @@ class ReviewService:
             "deadline": data.deadline,
             "stato": "pending",
             "valutazione": list(valutazione_template),
-            "processId": process_id,  # <-- collega al processId applicativo
         } for pair in data.lista_assegnazioni]
 
         await repo.bulk_create_reviews(review_docs)  # genera i reviewId
-        return process_id
+        return data.assignmentId
 
     @staticmethod
     async def list_my_reviews(user: UserContext, repo: ReviewRepo, stato: str | None) -> List[Review]:

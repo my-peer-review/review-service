@@ -3,28 +3,49 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
 
-from app.core.deps import get_repository
+from app.core.deps import get_repository, get_event_repository
 from app.schemas.context import UserContext
 from app.schemas.review import ReviewProcessCreate, Review, ReviewUpdate
 from app.database.review_repo import ReviewRepo
+from app.database.event_repo import SubmissionEventRepo
 from app.services.auth_service import AuthService
 from app.services.review_service import ReviewService
+from app.services.distributor_service import DistributorService
+from app.services.distributor_service import DistributionError
 
 router = APIRouter()
 
 RepoDep = Annotated[ReviewRepo, Depends(get_repository)]
+EventRepository = Annotated[SubmissionEventRepo, Depends(get_event_repository)]
 UserDep = Annotated[UserContext, Depends(AuthService.get_current_user)]
 
 @router.post("/reviews/process", status_code=status.HTTP_201_CREATED)
-async def start_review_process(payload: ReviewProcessCreate, user: UserDep, repo: RepoDep):
+async def start_review_process(payload: ReviewProcessCreate, user: UserDep, repo: RepoDep, event_repo: EventRepository):
     try:
-        pid = await ReviewService.start_process(payload, user, repo)  # <-- UUID
+        # 1) Costruisci la lista verificata (manuale/automatica)
+        verified_list = await DistributorService.build_verified_assignments(payload, event_repo)
+
+        # 2) Passa SOLO la lista validata al servizio di review
+        process_id = await ReviewService.start_process(
+            data=ReviewProcessCreate(
+                assignmentId=payload.assignmentId,
+                deadline=payload.deadline,
+                automatic_mode=payload.automatic_mode,
+                lista_assegnazioni=verified_list,
+                rubrica=payload.rubrica,
+            ),
+            user=user,
+            repo=repo,
+        )
         return JSONResponse(
             status_code=status.HTTP_201_CREATED,
-            content={"message": "Review process avviato per assignment", "RequestId": pid},
+            content={"message": "Review process avviato per assignment", "id": process_id},
         )
+    except DistributionError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
+
 
 @router.get("/reviews", response_model=list[Review])
 async def list_my_reviews(
@@ -49,6 +70,7 @@ async def get_my_review(review_id: str, user: UserDep, repo: RepoDep):
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
 
+
 @router.patch("/reviews/{review_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def submit_review(review_id: str, payload: ReviewUpdate, user: UserDep, repo: RepoDep):
     try:
@@ -58,6 +80,7 @@ async def submit_review(review_id: str, payload: ReviewUpdate, user: UserDep, re
         return JSONResponse(status_code=status.HTTP_204_NO_CONTENT, content=None)
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
+
 
 @router.get("/reviews/assignment/{assignment_id}/", response_model=list[Review])
 async def list_reviews_for_assignment(

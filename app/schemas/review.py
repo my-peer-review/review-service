@@ -1,10 +1,15 @@
 from __future__ import annotations
 from typing import List, Literal
-from datetime import datetime, date
+from datetime import datetime
 from pydantic import BaseModel, Field
 
 ReviewStatus = Literal["pending", "complete"]
 ProcessStatus = Literal["in_corso", "completata"]
+
+class DeliveredSubmission(BaseModel):
+    assignmentId: str
+    submissionId: str
+    studentId: str
 
 class RubricItem(BaseModel):
     criterio: str = Field(..., description="Nome del criterio di valutazione")
@@ -19,10 +24,10 @@ class AssignmentPair(BaseModel):
 
 class ReviewProcessCreate(BaseModel):
     assignmentId: str
+    automatic_mode: bool
     deadline: datetime
     lista_assegnazioni: List[AssignmentPair] = Field(..., min_length=1)
     rubrica: List[RubricItem] = Field(..., min_length=1)
-
 
 class Review(BaseModel):
     reviewId: str
