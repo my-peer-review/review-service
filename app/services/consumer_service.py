@@ -21,10 +21,10 @@ class ReviewSubmissionConsumer:
         repo: SubmissionEventRepo,
         rabbitmq_url: str,
         heartbeat: int = 30,
-        exchange_name: str = "elearning.submission-review",
-        routing_key: str = "submission.review",
-        queue_name: str = "elearning.submission-review.q.review",
-        durable: bool = False,           # come richiesto
+        exchange_name: str = "elearning.submissions-consegnate",
+        routing_key: str = "submissions.reviews",
+        queue_name: str = "submissions.reviews",
+        durable: bool = False,           
         prefetch_count: int = 20,
         requeue_on_error: bool = False,
     ) -> None:
@@ -53,7 +53,7 @@ class ReviewSubmissionConsumer:
                 self._channel = await self._conn.channel()
                 await self._channel.set_qos(prefetch_count=self.prefetch_count)
 
-                # Exchange: dichiara/ricrea in modo idempotente (se coerente)
+                # Exchange: dichiara/ricrea
                 self._exchange = await self._channel.declare_exchange(
                     self.review_exchange_name,
                     ExchangeType.DIRECT,

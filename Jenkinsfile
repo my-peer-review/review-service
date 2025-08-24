@@ -5,7 +5,7 @@ pipeline {
     CI_IMAGE_NAME   = 'reviews-pytest'
     APP_IMAGE_NAME  = 'ale175/service-review'
     DOCKERHUB_CREDS = 'dockerhub-creds'
-    INTEGRATION_JOB = 'peer-review-pipeline/integration-repo/main' // <— ADATTA a come si chiama da te
+    INTEGRATION_JOB = 'peer-review-pipeline/integration-repo/main'
   }
 
   stages {
