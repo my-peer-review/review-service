@@ -176,21 +176,29 @@ async def test_submit_review_requires_student(repo, teacher):
         await ReviewService.submit_review(teacher, repo, rid, _make_review_update())
 
 @pytest.mark.asyncio
-async def test_submit_review_wrong_owner_returns_false(repo, teacher, student2):
+async def test_submit_review_wrong_owner_returns_none(repo, teacher, student2):
     await ReviewService.start_process(_make_process_payload(), teacher, repo)
     # rid appartiene a s-1
     rid = next(r["reviewId"] for r in repo.reviews if r["reviewerId"] == "s-1")
     ok = await ReviewService.submit_review(student2, repo, rid, _make_review_update())
-    assert ok is False
+    # ora il servizio torna None se lo studente non è owner
+    assert ok is None
+
 
 @pytest.mark.asyncio
-async def test_submit_review_ok_updates_scores_and_state(repo, teacher, student1):
+async def test_submit_review_ok_returns_tuple_and_updates(repo, teacher, student1):
     await ReviewService.start_process(_make_process_payload(), teacher, repo)
     rid = next(r["reviewId"] for r in repo.reviews if r["reviewerId"] == "s-1")
 
     payload = _make_review_update()
     ok = await ReviewService.submit_review(student1, repo, rid, payload)
-    assert ok is True
+
+    # adesso submit_review torna una tupla (submissionId, media)
+    assert isinstance(ok, tuple)
+    submission_id, media = ok
+    assert submission_id == "SUB-100"
+    expected_media = sum(v.punteggio for v in payload.valutazione) / len(payload.valutazione)
+    assert media == pytest.approx(expected_media)
 
     # verifica update sul repo
     saved = await repo.by_id_for_student(rid, "s-1")
