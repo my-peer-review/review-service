@@ -11,6 +11,20 @@ from app.routers.v1 import review
 
 from app.database.mongo_events import MongoSubmissionDeliveredRepository
 from app.services.consumer_service import ReviewSubmissionConsumer
+from app.services.publisher_service import ReviewPublisher
+
+import logging
+import sys
+
+logging.basicConfig(
+    level=logging.INFO,  # cambia in DEBUG quando debuggiamo
+    format="%(asctime)s %(levelname)s %(name)s :: %(message)s",
+    stream=sys.stdout,
+)
+
+# opzionale: più verboso solo per i nostri namespace
+logging.getLogger("report.consumer").setLevel(logging.DEBUG)
+logging.getLogger("report.repository").setLevel(logging.DEBUG)
 
 def create_app() -> FastAPI:
     @asynccontextmanager
@@ -30,13 +44,23 @@ def create_app() -> FastAPI:
         consumer = ReviewSubmissionConsumer(
             rabbitmq_url = settings.rabbitmq_url,
             repo = event_repo,
-            exchange_name="elearning.submission-review",
-            routing_key="submission.review",
-            queue_name="elearning.submission-consegnate",
+            exchange_name="elearning.submissions-consegnate",
+            routing_key="submissions.reviews",
+            queue_name="submissions.reviews",
             durable=True
         )
-        app.state.submission_consumer = consumer
+        app.state.review_consumer = consumer
         await consumer.start()
+
+        # --- RabbitMQ Publisher ---
+        publisher = ReviewPublisher(
+            rabbitmq_url=settings.rabbitmq_url,
+            heartbeat= 30,
+            exchange = "elearning.reports",
+            routing_key = "reviews.reports",
+        )
+        app.state.review_publisher = publisher
+        await publisher.connect(max_retries=10, delay=5)
 
         try:
             yield
@@ -44,6 +68,7 @@ def create_app() -> FastAPI:
             # Shutdown
             try:
                 await consumer.stop()
+                await publisher.close()
             finally:
                 client.close()
 

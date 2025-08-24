@@ -1,9 +1,10 @@
 from __future__ import annotations
+from datetime import datetime, timezone
 from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
 
-from app.core.deps import get_repository, get_event_repository
+from app.core.deps import get_repository, get_event_repository, get_publisher
 from app.schemas.context import UserContext
 from app.schemas.review import ReviewProcessCreate, Review, ReviewUpdate
 from app.database.review_repo import ReviewRepo
@@ -12,12 +13,16 @@ from app.services.auth_service import AuthService
 from app.services.review_service import ReviewService
 from app.services.distributor_service import DistributorService
 from app.services.distributor_service import DistributionError
+from app.services.publisher_service import ReviewPublisher
 
 router = APIRouter()
 
 RepoDep = Annotated[ReviewRepo, Depends(get_repository)]
 EventRepository = Annotated[SubmissionEventRepo, Depends(get_event_repository)]
+PublisherDep = Annotated[ReviewPublisher, Depends(get_publisher)]
+
 UserDep = Annotated[UserContext, Depends(AuthService.get_current_user)]
+
 
 @router.post("/reviews/process", status_code=status.HTTP_201_CREATED)
 async def start_review_process(payload: ReviewProcessCreate, user: UserDep, repo: RepoDep, event_repo: EventRepository):
@@ -72,11 +77,19 @@ async def get_my_review(review_id: str, user: UserDep, repo: RepoDep):
 
 
 @router.patch("/reviews/{review_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def submit_review(review_id: str, payload: ReviewUpdate, user: UserDep, repo: RepoDep):
+async def submit_review(review_id: str, payload: ReviewUpdate, user: UserDep, repo: RepoDep, publisher: PublisherDep):
     try:
-        ok = await ReviewService.submit_review(user, repo, review_id, payload)
-        if not ok:
+        result = await ReviewService.submit_review(user, repo, review_id, payload)
+        if not result:
             raise HTTPException(status_code=404, detail="Review non trovata o non accessibile")
+        
+        submission_id, media = result
+    
+        try:
+            await publisher.publish_review_report(submission_id, review_id, media, datetime.now().astimezone())
+        except Exception as e:
+            raise HTTPException(status_code=503, detail=f"Invio evento RabbitMQ fallito: {e}")
+
         return JSONResponse(status_code=status.HTTP_204_NO_CONTENT, content=None)
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))

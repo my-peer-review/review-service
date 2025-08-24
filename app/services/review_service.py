@@ -1,6 +1,6 @@
 from __future__ import annotations
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional, Tuple
 from uuid import uuid4
 
 from app.schemas.context import UserContext
@@ -50,12 +50,35 @@ class ReviewService:
         return Review(**d) if d else None
 
     @staticmethod
-    async def submit_review(user: UserContext, repo: ReviewRepo, review_id: str, payload: ReviewUpdate) -> bool:
+    async def submit_review(
+        user: UserContext,
+        repo: ReviewRepo,
+        review_id: str,
+        payload: ReviewUpdate
+    ) -> Optional[Tuple[str, float]]:
         if not _is_student(user.role):
             raise PermissionError("Solo gli studenti possono inviare una review")
-        if not await repo.by_id_for_student(review_id, user.user_id):
-            return False
-        return await repo.update_scores(review_id, [v.model_dump() for v in payload.valutazione])
+
+        # Controllo: non sono ammessi punteggi -1
+        if any(v.punteggio == -1 for v in payload.valutazione):
+            raise ValueError("Tutti i criteri devono essere valutati (punteggio -1 non ammesso)")
+
+        # Controllo esistenza/ownership della review
+        review_obiettivo = await repo.by_id_for_student(review_id, user.user_id)
+        if not review_obiettivo:
+            return None
+
+        # Update dei punteggi
+        ok = await repo.update_scores(review_id, [v.model_dump() for v in payload.valutazione])
+        if not ok:
+            return None
+
+        submission_id = review_obiettivo.get("submissionId")
+        scores = [v.punteggio for v in payload.valutazione]
+        media = sum(scores) / len(scores)
+        
+        return submission_id, media
+            
 
     @staticmethod
     async def list_by_assignment_for_teacher(user: UserContext, repo: ReviewRepo, assignment_id: str) -> List[Review]:
