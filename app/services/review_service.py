@@ -68,6 +68,26 @@ class ReviewService:
         if not review_obiettivo:
             return None
 
+        # ---- NUOVI CONTROLLI SUI CRITERI ----
+        expected_criteria = [v["criterio"] for v in review_obiettivo.get("valutazione", [])]
+        provided_criteria = [v.criterio for v in payload.valutazione]
+
+        # opzionale: blocca duplicati nel payload
+        if len(set(provided_criteria)) != len(provided_criteria):
+            raise ValueError("I criteri nel payload contengono duplicati")
+
+        missing = [c for c in expected_criteria if c not in provided_criteria]
+        unexpected = [c for c in provided_criteria if c not in expected_criteria]
+
+        if missing or unexpected:
+            msg_parts = []
+            if missing:
+                msg_parts.append(f"mancano: {', '.join(missing)}")
+            if unexpected:
+                msg_parts.append(f"non attesi: {', '.join(unexpected)}")
+            raise ValueError("I criteri valutati devono coincidere con quelli attesi (" + "; ".join(msg_parts) + ")")
+        # -------------------------------------
+
         # Update dei punteggi
         ok = await repo.update_scores(review_id, [v.model_dump() for v in payload.valutazione])
         if not ok:
@@ -76,9 +96,8 @@ class ReviewService:
         submission_id = review_obiettivo.get("submissionId")
         scores = [v.punteggio for v in payload.valutazione]
         media = sum(scores) / len(scores)
-        
+
         return submission_id, media
-            
 
     @staticmethod
     async def list_by_assignment_for_teacher(user: UserContext, repo: ReviewRepo, assignment_id: str) -> List[Review]:
